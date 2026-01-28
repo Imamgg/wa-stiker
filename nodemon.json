@@ -1,0 +1,7 @@
+{
+  "verbose": true,
+  "execMap": {
+    "ts": "ts-node"
+  },
+  "ignore": ["auth_info_baileys/*", ".wwebjs_auth/*", ".wwebjs_cache/*"]
+}
