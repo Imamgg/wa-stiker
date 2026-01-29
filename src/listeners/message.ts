@@ -3,6 +3,7 @@ import { WAMessage, WASocket } from "@whiskeysockets/baileys";
 import { handleHelp } from "../handlers/help";
 import { handleSticker } from "../handlers/sticker";
 import parseOptions from "../utils/parseOptions";
+import { handleTextSticker } from "../handlers/textSticker";
 
 export async function handleMessage(sock: WASocket, msg: WAMessage) {
   const remoteJid = msg.key?.remoteJid;
@@ -49,6 +50,18 @@ export async function handleMessage(sock: WASocket, msg: WAMessage) {
   if (command.toLowerCase().includes("!help")) {
     console.log("[DEBUG] Menjalankan help handler");
     await handleHelp(sock, remoteJid);
+    return;
+  }
+
+  // Handle !textsticker command
+  if (["!textsticker", "!teksstiker", "!ts"].includes(command.toLowerCase())) {
+    console.log("[DEBUG] Menjalankan text sticker handler");
+    // Get text after command (excluding name/author options)
+    const textParts = rest.filter(
+      (part) => !part.startsWith("name=") && !part.startsWith("author="),
+    );
+    const text = textParts.join(" ").split("|")[0].trim();
+    await handleTextSticker(sock, remoteJid, text, stickerName, stickerAuthor);
     return;
   }
 
