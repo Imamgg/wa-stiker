@@ -1,13 +1,16 @@
-import { downloadMediaMessage, proto, WASocket } from "@whiskeysockets/baileys";
+import {
+  downloadMediaMessage,
+  WAMessage,
+  WASocket,
+} from "@whiskeysockets/baileys";
 import sharp from "sharp";
 
 import printLog from "../utils/logger";
-
-type WebMessageInfo = proto.IWebMessageInfo;
+import { addStickerExif } from "../utils/stickerExif";
 
 export async function handleSticker(
   sock: WASocket,
-  msg: WebMessageInfo,
+  msg: WAMessage,
   stickerName: string | null,
   stickerAuthor: string | null,
 ) {
@@ -22,16 +25,7 @@ export async function handleSticker(
 
   try {
     // Download the image
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const buffer = await downloadMediaMessage(
-      msg as any,
-      "buffer",
-      {},
-      {
-        logger: undefined as any,
-        reuploadRequest: sock.updateMediaMessage,
-      },
-    );
+    const buffer = await downloadMediaMessage(msg, "buffer", {});
 
     if (!buffer) {
       await sock.sendMessage(remoteJid, {
@@ -49,9 +43,16 @@ export async function handleSticker(
       .webp()
       .toBuffer();
 
+    // Add EXIF metadata with sticker name and author
+    const stickerBuffer = await addStickerExif(
+      webpBuffer,
+      stickerName,
+      stickerAuthor,
+    );
+
     // Send as sticker
     await sock.sendMessage(remoteJid, {
-      sticker: webpBuffer,
+      sticker: stickerBuffer,
     });
 
     // Print log

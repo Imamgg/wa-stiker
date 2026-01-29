@@ -1,12 +1,10 @@
-import { proto, WASocket } from "@whiskeysockets/baileys";
+import { WAMessage, WASocket } from "@whiskeysockets/baileys";
 
 import { handleHelp } from "../handlers/help";
 import { handleSticker } from "../handlers/sticker";
 import parseOptions from "../utils/parseOptions";
 
-type WebMessageInfo = proto.IWebMessageInfo;
-
-export async function handleMessage(sock: WASocket, msg: WebMessageInfo) {
+export async function handleMessage(sock: WASocket, msg: WAMessage) {
   const remoteJid = msg.key?.remoteJid;
   if (!remoteJid) return;
 
