@@ -1,6 +1,7 @@
 import { Boom } from "@hapi/boom";
 import makeWASocket, {
   DisconnectReason,
+  fetchLatestBaileysVersion,
   useMultiFileAuthState,
   WASocket,
 } from "@whiskeysockets/baileys";
@@ -15,9 +16,12 @@ let sock: WASocket;
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+  const { version } = await fetchLatestBaileysVersion();
+  console.log(`📡 Using WA version: ${version.join(".")}`);
 
   sock = makeWASocket({
     auth: state,
+    version,
     printQRInTerminal: false,
     logger,
   });
@@ -32,9 +36,8 @@ async function connectToWhatsApp() {
     }
 
     if (connection === "close") {
-      const shouldReconnect =
-        (lastDisconnect?.error as Boom)?.output?.statusCode !==
-        DisconnectReason.loggedOut;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log(
         "Connection closed due to",
         lastDisconnect?.error,
@@ -42,7 +45,10 @@ async function connectToWhatsApp() {
         shouldReconnect,
       );
       if (shouldReconnect) {
-        connectToWhatsApp();
+        // Add delay before reconnecting to avoid rate limiting (405 errors)
+        const delay = statusCode === 405 ? 10000 : 3000;
+        console.log(`⏳ Reconnecting in ${delay / 1000}s...`);
+        setTimeout(connectToWhatsApp, delay);
       }
     } else if (connection === "open") {
       console.log("✅ Bot berhasil terhubung ke WhatsApp!");
