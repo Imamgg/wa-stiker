@@ -5,17 +5,43 @@ import makeWASocket, {
   useMultiFileAuthState,
   WASocket,
 } from "@whiskeysockets/baileys";
+import * as fs from "node:fs/promises";
 import pino from "pino";
 import * as qrcode from "qrcode-terminal";
 
 import { handleMessage } from "./listeners/message";
 
 const logger = pino({ level: "silent" });
+const AUTH_DIR = "auth_info_baileys";
+
+let reconnectTimer: NodeJS.Timeout | null = null;
 
 let sock: WASocket;
 
+async function resetAuthState() {
+  try {
+    await fs.rm(AUTH_DIR, { recursive: true, force: true });
+    await fs.mkdir(AUTH_DIR, { recursive: true });
+    console.log("🔐 Sesi login lama dibersihkan. Silakan scan QR baru.");
+  } catch (error) {
+    console.error("❌ Gagal mereset auth state:", error);
+  }
+}
+
+function scheduleReconnect(delayMs: number) {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+  }
+
+  console.log(`⏳ Reconnecting in ${delayMs / 1000}s...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectToWhatsApp();
+  }, delayMs);
+}
+
 async function connectToWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
   console.log(`📡 Using WA version: ${version.join(".")}`);
 
@@ -38,17 +64,25 @@ async function connectToWhatsApp() {
     if (connection === "close") {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      const isUnauthorized = statusCode === 401;
+
       console.log(
         "Connection closed due to",
         lastDisconnect?.error,
         ", reconnecting:",
         shouldReconnect,
       );
+
+      if (statusCode === DisconnectReason.loggedOut || isUnauthorized) {
+        await resetAuthState();
+        scheduleReconnect(3000);
+        return;
+      }
+
       if (shouldReconnect) {
         // Add delay before reconnecting to avoid rate limiting (405 errors)
         const delay = statusCode === 405 ? 10000 : 3000;
-        console.log(`⏳ Reconnecting in ${delay / 1000}s...`);
-        setTimeout(connectToWhatsApp, delay);
+        scheduleReconnect(delay);
       }
     } else if (connection === "open") {
       console.log("✅ Bot berhasil terhubung ke WhatsApp!");
@@ -77,4 +111,7 @@ async function connectToWhatsApp() {
 }
 
 console.log("🚀 Initializing WhatsApp Bot...");
-connectToWhatsApp();
+connectToWhatsApp().catch((error) => {
+  console.error("❌ Gagal menginisialisasi koneksi WhatsApp:", error);
+  scheduleReconnect(5000);
+});
